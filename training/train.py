@@ -93,6 +93,7 @@ def main() -> None:
         mlflow.set_tags(prov)
         mlflow.log_artifact(str(POINTER), artifact_path="provenance")
         mlflow.sklearn.log_model(pipe, name="model", signature=infer_signature(Xte, pred),
+                                 serialization_format="cloudpickle",
                                  registered_model_name=a.register)
         print(re.sub(r"\s+", " ", f"run={run.info.run_id} {prov['dataset_version']} "
               + " ".join(f"{k}={v:.3f}" for k, v in metrics.items())))
