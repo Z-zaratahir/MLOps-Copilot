@@ -1,0 +1,32 @@
+# secrets and local config
+.env
+*.pem
+*.key
+kubeconfig*
+.kube/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# local service state
+mlruns/
+mlartifacts/
+mlflow.db
+airflow/logs/
+airflow/airflow.db
+.dvc/cache/
+.dvc/tmp/
+dvc_remote/
+models/*.joblib
+
+# editors / os
+.vscode/
+.idea/
+.DS_Store
