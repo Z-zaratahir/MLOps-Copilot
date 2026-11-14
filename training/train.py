@@ -5,6 +5,7 @@ dataset pointer, and the nearest dataset tag, so "which data trained this
 model?" is answerable later from MLflow alone.
 """
 import argparse
+import hashlib
 import os
 import re
 import subprocess
@@ -35,12 +36,14 @@ def git(*args: str) -> str:
 
 def dataset_provenance() -> dict:
     md5 = yaml.safe_load(POINTER.read_text())["outs"][0]["md5"]
-    commit = git("log", "-1", "--format=%H", "--", "data/parcels.csv.dvc")
+    # commit that introduced this exact hash (robust to checking out older pointers)
+    commit = git("log", "--reverse", "--format=%H", f"-S{md5}", "--", "data/parcels.csv.dvc")
+    commit = commit.splitlines()[0] if commit else ""
     tags = [t for t in git("tag", "--points-at", commit).split() if t.startswith("dataset-")]
     version = tags[0].removeprefix("dataset-") if tags else "untagged"
-    dirty = bool(git("status", "--porcelain", "--", "data/parcels.csv.dvc"))
+    actual = hashlib.md5(DATA.read_bytes()).hexdigest()
     return dict(dataset_version=version, dataset_md5=md5, dataset_git_commit=commit,
-                dataset_pointer_dirty=str(dirty).lower())
+                dataset_file_matches_pointer=str(actual == md5).lower())
 
 
 def build(model: str, p: dict) -> Pipeline:
