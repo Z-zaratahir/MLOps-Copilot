@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: parcel-delay-api
+  namespace: parcel-ml
+  labels:
+    app: parcel-delay-api
+spec:
+  type: ClusterIP
+  selector:
+    app: parcel-delay-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
