@@ -1,0 +1,18 @@
+schema: '2.0'
+stages:
+  profile_data:
+    cmd: python training/profile_data.py
+    deps:
+    - path: data/parcels.csv
+      hash: md5
+      md5: 6597840d73f0cf1480f078409194d6c2
+      size: 286301
+    - path: training/profile_data.py
+      hash: md5
+      md5: 15d54ee504fd10373196d48f69f9075a
+      size: 857
+    outs:
+    - path: metrics/data_profile.json
+      hash: md5
+      md5: 9f915fec7a104cb62ed35dadde1a3260
+      size: 152

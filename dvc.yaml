@@ -1,0 +1,9 @@
+stages:
+  profile_data:
+    cmd: python training/profile_data.py
+    deps:
+      - data/parcels.csv
+      - training/profile_data.py
+    metrics:
+      - metrics/data_profile.json:
+          cache: false

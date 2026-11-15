@@ -1,0 +1,8 @@
+{
+  "rows": 9000,
+  "delay_rate": 0.5437,
+  "mean_distance_km": 2.345,
+  "mean_rider_load": 2.982,
+  "storm_or_rain_share": 0.5534,
+  "null_cells": 0
+}
