@@ -31,3 +31,5 @@ models/*.joblib
 .idea/
 .DS_Store
 models/served/
+.work/
+airflow/passwords.json
