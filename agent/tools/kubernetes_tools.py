@@ -149,7 +149,10 @@ def k8s_find_unhealthy_pods(_: NoArgs):
                 reasons.append(f"{c['restart_count']} restart(s), last: "
                                f"{(c['last_termination'] or {}).get('reason', 'unknown')}")
         if reasons:
-            problems.append({**_pod_brief(p), "reasons": reasons})
+            res = p.spec.containers[0].resources
+            problems.append({**_pod_brief(p), "reasons": reasons,
+                             "memory_request": (res.requests or {}).get("memory"),
+                             "memory_limit": (res.limits or {}).get("memory")})
     events = core.list_namespaced_event(_ns(), _request_timeout=TIMEOUT).items
     warns = sorted((e for e in events if e.type == "Warning"),
                    key=lambda e: e.last_timestamp or e.event_time or e.metadata.creation_timestamp)[-8:]
