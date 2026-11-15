@@ -55,6 +55,18 @@ AREAS = {
     "airflow": re.compile(r"\b(pipelines?|airflow|dags?|workflows?|retrain\w*|training runs?)\b", re.I),
 }
 MAX_COVERAGE_NUDGES = 2
+DIAGNOSIS = re.compile(r"\b(why|unavailable|not (?:working|responding|ready)|down|failing|broken|diagnos\w*|outage)\b",
+                       re.I)
+DIAGNOSTIC_TOOLS = ["k8s_find_unhealthy_pods", "k8s_get_pod_logs", "k8s_list_services", "k8s_get_config"]
+
+
+def missing_diagnostics(question: str, results: list[ToolResult]) -> list[str]:
+    """'Why is the API unavailable?' needs pods, logs, service endpoints and config before a root cause."""
+    if not (DIAGNOSIS.search(question) and re.search(r"\b(api|service|deployment|pods?|endpoint)\b", question, re.I)
+            and not re.search(r"\b(pipeline|dag|training|airflow)\b", question, re.I)):
+        return []
+    done = {r.tool for r in results}
+    return [t for t in DIAGNOSTIC_TOOLS if t not in done]
 
 
 def missing_areas(question: str, results: list[ToolResult]) -> list[str]:
@@ -90,13 +102,13 @@ class Orchestrator:
                 calls = (msg.get("tool_calls") or [])[:MAX_CALLS_PER_STEP]
                 if not calls:
                     draft = msg.get("content") or ""
-                    gaps = missing_areas(question, ctx.results)
+                    gaps = missing_areas(question, ctx.results) + missing_diagnostics(question, ctx.results)
                     if gaps and nudges < MAX_COVERAGE_NUDGES:
                         nudges += 1
                         messages += [{"role": "assistant", "content": draft},
                                      {"role": "user", "content": "Your answer is incomplete: the question spans several "
-                                      f"systems and you have not queried: {', '.join(gaps)}. Call the relevant tools "
-                                      "now, then answer."}]
+                                      f"evidence and you have not yet used: {', '.join(gaps)}. Call the relevant tools "
+                                      "now, then answer with a root cause backed by that evidence."}]
                         log_event("coverage_nudge", request_id=ctx.request_id, missing=gaps)
                         continue
                     break

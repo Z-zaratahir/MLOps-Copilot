@@ -73,7 +73,15 @@ def test_multi_system_question_is_pushed_to_query_every_system(monkeypatch):
     ans = Orchestrator(llm).run(q)
     assert {e.tool for e in ans.evidence} >= {"find_best_run", "get_dataset_for_run", "k8s_get_deployed_version"}
     assert missing_areas(q, ans.evidence) == []
-    assert any("not queried" in str(m) or "have not queried" in str(m) for call_ in llm.calls for m in call_)
+    assert any("have not yet used" in str(m) for call_ in llm.calls for m in call_)
+
+
+def test_unavailability_question_requires_pods_logs_services_and_config():
+    from agent.orchestrator import missing_diagnostics
+    q = "Why is my prediction API unavailable?"
+    assert missing_diagnostics(q, []) == ["k8s_find_unhealthy_pods", "k8s_get_pod_logs", "k8s_list_services",
+                                          "k8s_get_config"]
+    assert missing_diagnostics("Why did the training pipeline fail?", []) == []
 
 
 def test_best_run_is_not_called_production_ready_just_for_top_f1(monkeypatch):
