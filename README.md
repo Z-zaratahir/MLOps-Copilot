@@ -149,6 +149,11 @@ the LLM are mocked in CI.
 | Pod crash loop | patch the deployment memory request to `16Mi` and limit to `40Mi` | pod `CrashLoopBackOff`, `last: OOMKilled`, restart count, BackOff events, memory limit | `kubectl apply -f kubernetes/deployment.yaml` |
 | Unavailable service | `MLFLOW_TRACKING_URI=http://127.0.0.1:59999 python -m agent.main -q "..."` | MLflow tools fail; agent reports the errors and does not invent results | restore the URI |
 
+## Report and evidence
+
+* `report/` holds the technical report (architecture, tool permissions, five agent conversations, two failure investigations, limitations).
+* `screenshots/` holds the evidence used in the report: DVC, MLflow, Airflow and Kubernetes views, terminal output, and the agent conversations.
+
 ## Secrets
 
 No API keys, kubeconfig or tokens are committed. Secrets come from `.env` / environment variables; logs redact
