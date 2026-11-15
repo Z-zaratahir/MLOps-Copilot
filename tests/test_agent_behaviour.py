@@ -123,6 +123,23 @@ def test_failed_quality_gate_and_stale_data_trigger_a_recommendation(monkeypatch
     assert "no training run was started" in r.data["note"]
 
 
+def test_trigger_keeps_the_run_id_when_status_polling_times_out(monkeypatch):
+    from agent.tools import airflow_tools
+
+    class FakeClient:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def post(self, *a, **k):
+            return type("R", (), {"raise_for_status": lambda s: None, "json": lambda s: {"dag_run_id": "run-1"}})()
+
+    monkeypatch.setattr(airflow_tools, "_http", lambda: FakeClient())
+    monkeypatch.setattr(airflow_tools, "_get", lambda *a, **k: (_ for _ in ()).throw(httpx.ReadTimeout("slow")))
+    monkeypatch.setattr(airflow_tools.time, "sleep", lambda s: None)
+    r = registry.execute("airflow_trigger_training", {"wait_seconds": 1},
+                         registry.RequestContext("r", "please trigger the training pipeline"))
+    assert r.ok and r.data["dag_run_id"] == "run-1" and "run itself was created" in r.data["status_check_problems"]
+
+
 def test_llm_chain_switches_model_when_one_is_rate_limited(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "k")
     from agent.config import get_settings

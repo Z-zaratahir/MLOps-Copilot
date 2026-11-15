@@ -19,7 +19,7 @@ def _http() -> httpx.Client:
                        json={"username": s.airflow_username, "password": s.airflow_password})
         r.raise_for_status()
         _token.update(value=r.json()["access_token"], exp=time.time() + 600, base=s.airflow_base_url)
-    return httpx.Client(base_url=f"{s.airflow_base_url}/api/v2", timeout=10,
+    return httpx.Client(base_url=f"{s.airflow_base_url}/api/v2", timeout=20,
                         headers={"Authorization": f"Bearer {_token['value']}"})
 
 
@@ -146,11 +146,23 @@ def airflow_trigger_training(a: TriggerIn):
         r = c.post(f"/dags/{dag}/dagRuns", json={"logical_date": None, "conf": conf})
         r.raise_for_status()
         rid = r.json()["dag_run_id"]
-    state, deadline = "queued", time.time() + a.wait_seconds
+    # The run now exists. From here on, never lose its id: the API can be slow while a task executes.
+    state, deadline, poll_errors = "queued", time.time() + a.wait_seconds, []
     while a.wait_seconds and time.time() < deadline:
-        state = _get(f"/dags/{dag}/dagRuns/{rid}")["state"]
-        if state in ("success", "failed"):
-            break
+        try:
+            state = _get(f"/dags/{dag}/dagRuns/{rid}")["state"]
+            if state in ("success", "failed"):
+                break
+        except httpx.HTTPError as exc:
+            poll_errors.append(type(exc).__name__)
         time.sleep(4)
-    return {"dag_id": dag, "dag_run_id": rid, "triggered_with": conf,
-            "state_when_last_checked": state, "tasks": _tasks(dag, rid)}
+    try:
+        tasks = _tasks(dag, rid)
+    except httpx.HTTPError as exc:
+        tasks, poll_errors = None, poll_errors + [type(exc).__name__]
+    out = {"dag_id": dag, "dag_run_id": rid, "triggered_with": conf,
+           "state_when_last_checked": state, "tasks": tasks}
+    if poll_errors:
+        out["status_check_problems"] = f"{len(poll_errors)} status check(s) failed ({sorted(set(poll_errors))}); " \
+                                       "the run itself was created. Query its status again for the outcome."
+    return out
