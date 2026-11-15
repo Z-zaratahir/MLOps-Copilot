@@ -1,11 +1,11 @@
 """Tool registry: schemas for the LLM, validated + time-boxed + logged execution."""
 import time
 import typing
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Callable
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 

@@ -3,12 +3,12 @@ explicit human confirmation (see agent/policy.py)."""
 import json
 from datetime import UTC, datetime
 
-from kubernetes import client, config
 from pydantic import Field
 
 from agent import policy
 from agent.config import get_settings
 from agent.registry import NoArgs, ToolInput, tool
+from kubernetes import client, config
 
 MODULE = "kubernetes"
 TIMEOUT = 8

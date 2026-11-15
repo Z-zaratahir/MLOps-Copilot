@@ -12,8 +12,8 @@ import os
 import subprocess
 from datetime import datetime, timedelta
 
-from airflow.sdk import DAG, Param, get_current_context, task
 from airflow.exceptions import AirflowFailException
+from airflow.sdk import DAG, Param, get_current_context, task
 
 log = logging.getLogger(__name__)
 PROJECT = os.environ.get("PROJECT_DIR", ".")
