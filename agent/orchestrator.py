@@ -19,7 +19,7 @@ from agent.tools import (  # noqa: F401  (imports register the tools)
 
 MAX_STEPS = 8
 MAX_CALLS_PER_STEP = 6
-MAX_TOOL_JSON = 4000
+MAX_TOOL_JSON = 2400
 CONFIRM = re.compile(r"^\s*confirm\s+([0-9a-f]{6})\s*$", re.I)
 
 SYSTEM_PROMPT = """You are the MLOps Copilot for a parcel-delay prediction model. You operate real systems through tools: \

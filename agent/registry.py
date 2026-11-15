@@ -74,6 +74,8 @@ def _compact(node):
                 continue
             if k == "default" and v is None:
                 continue
+            if k == "description" and isinstance(v, str):
+                v = v.split(". ")[0][:90]  # first sentence only
             out[k] = _compact(v) if k != "properties" else {p: _compact(s) for p, s in v.items()}
         return out
     if isinstance(node, list):
@@ -88,7 +90,7 @@ def llm_schemas(only: set[str] | None = None) -> list[dict]:
             continue
         schema = _compact(t.input_model.model_json_schema())
         out.append({"type": "function", "function": {
-            "name": t.name, "description": t.description, "parameters": schema}})
+            "name": t.name, "description": t.description.split(". ")[0][:150], "parameters": schema}})
     return out
 
 
