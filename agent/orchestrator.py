@@ -89,7 +89,22 @@ def missing_areas(question: str, results: list[ToolResult]) -> list[str]:
     return [a for a in matched if a not in called]
 
 
-REQUIRED_SECTIONS = ["Known facts", "Uncertainties", "Recommended actions"]
+PROVENANCE = re.compile(r"\b(data(set)?)\b.{0,50}\b(train\w*|used|version)\b|\btrained on\b", re.I)
+
+
+def missing_provenance(question: str, results: list[ToolResult]) -> str | None:
+    """Once a model was selected, its recorded dataset reference must be read (not just the current data).
+    Returns the selected run id when that lookup is still missing."""
+    if not PROVENANCE.search(question):
+        return None
+    best = next((r for r in results if r.tool == "find_best_run" and r.ok), None)
+    if best is None or any(r.tool == "get_dataset_for_run" and r.ok for r in results):
+        return None
+    chosen = best.data.get("best") if isinstance(best.data, dict) else None
+    return chosen.get("run_id") if isinstance(chosen, dict) else None
+
+
+REQUIRED_SECTIONS =["Known facts", "Uncertainties", "Recommended actions"]
 
 
 def missing_sections(question: str, draft: str) -> list[str]:
@@ -130,13 +145,20 @@ class Orchestrator:
                                          "results above and citing evidence ids."})
                         continue
                     area_gaps = missing_areas(question, ctx.results)
+                    prov = missing_provenance(question, ctx.results)
                     gaps = area_gaps + missing_diagnostics(question, ctx.results)
+                    if prov:
+                        gaps.append(f"get_dataset_for_run (run_ref={prov}) for the selected model")
                     if gaps and nudges >= MAX_COVERAGE_NUDGES and not forced:
                         # the model ignored the nudges: run the default read-only tools ourselves, once
                         forced = True
-                        todo = [DEFAULT_TOOL[a] for a in area_gaps] + [g for g in gaps if g in FORCEABLE_DIAGNOSTICS]
-                        got = [self._run_call({"id": "forced", "function": {"name": t, "arguments": "{}"}}, ctx, cache)
-                               for t in dict.fromkeys(todo)]
+                        todo = [DEFAULT_TOOL[a] for a in area_gaps if not (a == "dvc" and prov)]
+                        todo += [g for g in gaps if g in FORCEABLE_DIAGNOSTICS]
+                        calls_ = [(t, {}) for t in dict.fromkeys(todo)]
+                        if prov:
+                            calls_.append(("get_dataset_for_run", {"run_ref": prov}))
+                        got = [self._run_call({"id": "forced", "function": {"name": t, "arguments": json.dumps(a)}},
+                                              ctx, cache) for t, a in calls_]
                         log_event("coverage_forced", request_id=ctx.request_id, tools=todo)
                         messages += [{"role": "assistant", "content": draft},
                                      {"role": "user", "content": "The orchestrator ran these required read-only tools "

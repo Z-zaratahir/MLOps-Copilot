@@ -114,6 +114,16 @@ def test_combined_answers_must_separate_facts_uncertainties_and_actions(monkeypa
     assert missing_sections("what is the f1 of run 3?", "just 0.7") == []
 
 
+def test_selected_models_recorded_dataset_reference_must_be_read():
+    from agent.orchestrator import missing_provenance
+    best = ToolResult(tool="find_best_run", status="ok", data={"best": {"run_id": "abc"}}, evidence_id="E1")
+    q = "Find the best model and identify the dataset version used to train it"
+    assert missing_provenance(q, [best]) == "abc"
+    done = ToolResult(tool="get_dataset_for_run", status="ok", data={}, evidence_id="E2")
+    assert missing_provenance(q, [best, done]) is None
+    assert missing_provenance("What is the best model?", [best]) is None
+
+
 def test_best_run_is_not_called_production_ready_just_for_top_f1(monkeypatch):
     runs = [fake_run("old-high", "r1", 0.80, recall=0.30, version="v1"), fake_run("new", "r2", 0.70, gate="passed")]
     monkeypatch.setattr(mlflow_tools, "all_runs", lambda *a, **k: runs)
