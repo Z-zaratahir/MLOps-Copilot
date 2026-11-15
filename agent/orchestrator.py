@@ -55,6 +55,10 @@ AREAS = {
     "airflow": re.compile(r"\b(pipelines?|airflow|dags?|workflows?|retrain\w*|training runs?)\b", re.I),
 }
 MAX_COVERAGE_NUDGES = 2
+DEFAULT_TOOL = {"mlflow": "find_best_run", "dvc": "dvc_current_version",
+                "kubernetes": "k8s_find_unhealthy_pods", "airflow": "airflow_get_dag_runs"}
+FORCEABLE_DIAGNOSTICS = {"k8s_find_unhealthy_pods", "k8s_get_pod_logs", "k8s_list_services", "k8s_get_config",
+                         "airflow_identify_failed_tasks", "dvc_detect_changes"}
 DIAGNOSIS = re.compile(r"\b(why|unavailable|not (?:working|responding|ready)|down|failing|broken|diagnos\w*|outage)\b",
                        re.I)
 DIAGNOSTIC_TOOLS = ["k8s_find_unhealthy_pods", "k8s_get_pod_logs", "k8s_list_services", "k8s_get_config"]
@@ -101,7 +105,7 @@ class Orchestrator:
         messages = [{"role": "system", "content": SYSTEM_PROMPT.format(
             dag=s.airflow_approved_dag, ns=s.k8s_approved_namespace, today=date.today().isoformat())},
             *self.history[-6:], {"role": "user", "content": question}]
-        schemas, cache, nudges, empty_turns = registry.llm_schemas(), {}, 0, 0
+        schemas, cache, nudges, empty_turns, forced = registry.llm_schemas(), {}, 0, 0, False
         draft = None
         try:
             for _ in range(MAX_STEPS):
@@ -114,7 +118,20 @@ class Orchestrator:
                         messages.append({"role": "user", "content": "Write your final answer now, using the tool "
                                          "results above and citing evidence ids."})
                         continue
-                    gaps = missing_areas(question, ctx.results) + missing_diagnostics(question, ctx.results)
+                    area_gaps = missing_areas(question, ctx.results)
+                    gaps = area_gaps + missing_diagnostics(question, ctx.results)
+                    if gaps and nudges >= MAX_COVERAGE_NUDGES and not forced:
+                        # the model ignored the nudges: run the default read-only tools ourselves, once
+                        forced = True
+                        todo = [DEFAULT_TOOL[a] for a in area_gaps] + [g for g in gaps if g in FORCEABLE_DIAGNOSTICS]
+                        got = [self._run_call({"id": "forced", "function": {"name": t, "arguments": "{}"}}, ctx, cache)
+                               for t in dict.fromkeys(todo)]
+                        log_event("coverage_forced", request_id=ctx.request_id, tools=todo)
+                        messages += [{"role": "assistant", "content": draft},
+                                     {"role": "user", "content": "The orchestrator ran these required read-only tools "
+                                      "because they were missing. Use their results (cite the evidence ids) and answer "
+                                      "now:\n" + "\n".join(g["content"] for g in got)}]
+                        continue
                     if gaps and nudges < MAX_COVERAGE_NUDGES:
                         nudges += 1
                         messages += [{"role": "assistant", "content": draft},

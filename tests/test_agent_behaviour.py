@@ -86,6 +86,18 @@ def test_unavailability_question_requires_pods_logs_services_and_config():
     assert missing_diagnostics("What is the best model?", []) == []
 
 
+def test_orchestrator_runs_missing_systems_itself_when_the_model_keeps_skipping_them(monkeypatch):
+    patch_tool(monkeypatch, "find_best_run", lambda a: {"best": "r1"})
+    patch_tool(monkeypatch, "dvc_current_version", lambda a: {"version": "v3"})
+    patch_tool(monkeypatch, "k8s_find_unhealthy_pods", lambda a: {"healthy": True})
+    patch_tool(monkeypatch, "airflow_get_dag_runs", lambda a: {"runs": []})
+    stubborn = FakeLLM(call("find_best_run"), say("a"), say("b"), say("c"), say("Final, using all evidence [E4]."))
+    q = "Find the best model, its dataset version, the deployment status and whether retraining is needed"
+    ans = Orchestrator(stubborn).run(q)
+    assert {e.tool for e in ans.evidence} >= {"dvc_current_version", "k8s_find_unhealthy_pods", "airflow_get_dag_runs"}
+    assert ans.answer.startswith("Final")
+
+
 def test_best_run_is_not_called_production_ready_just_for_top_f1(monkeypatch):
     runs = [fake_run("old-high", "r1", 0.80, recall=0.30, version="v1"), fake_run("new", "r2", 0.70, gate="passed")]
     monkeypatch.setattr(mlflow_tools, "all_runs", lambda *a, **k: runs)

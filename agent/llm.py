@@ -16,7 +16,7 @@ ENDPOINTS = {
     "gemini": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
 }
 MAX_WAIT_SECONDS = 65
-ROUNDS = 3
+ROUNDS = 6
 
 
 class LLMError(Exception):
