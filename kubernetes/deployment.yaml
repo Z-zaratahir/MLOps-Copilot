@@ -25,6 +25,12 @@ spec:
           envFrom:
             - configMapRef:
                 name: parcel-delay-config
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 2
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /ready
