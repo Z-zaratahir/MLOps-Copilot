@@ -29,13 +29,20 @@ def use_version(version: str) -> None:
     sh(sys.executable, "-m", "dvc", "checkout", POINTER)
 
 
+BASELINES = {v: [("logreg", dict(max_depth=3, learning_rate=0.1, n_estimators=100)),
+                 ("rf", dict(max_depth=6, learning_rate=0.1, n_estimators=100))] for v in ("v1", "v2", "v3")}
+
+
 def main() -> None:
+    baselines = "--baselines" in sys.argv  # second experiment, used to compare experiments
+    plan = BASELINES if baselines else SWEEP
+    extra = ["--experiment", "parcel-delay-baselines", "--register", "parcel-delay-baseline"] if baselines else []
     try:
-        for version, configs in SWEEP.items():
+        for version, configs in plan.items():
             use_version(version)
             for i, (model, p) in enumerate(configs, 1):
-                name = f"sweep-{version}-{model}-{i}"
-                out = sh(sys.executable, "training/train.py", "--model", model, "--run-name", name,
+                name = f"{'baseline' if baselines else 'sweep'}-{version}-{model}-{i}"
+                out = sh(sys.executable, "training/train.py", "--model", model, "--run-name", name, *extra,
                          "--max-depth", str(p["max_depth"]), "--learning-rate", str(p["learning_rate"]),
                          "--n-estimators", str(p["n_estimators"]))
                 print(name, out.strip().splitlines()[-1][:120])
