@@ -63,7 +63,7 @@ class TriggerIn(ToolInput):
     model: str = Field("rf", pattern="^(rf|gbm|logreg)$")
     max_depth: int = Field(8, ge=1, le=20)
     min_f1: float = Field(0.60, ge=0, le=1)
-    wait_seconds: int = Field(0, ge=0, le=100, description="Seconds to wait for the run to finish")
+    wait_seconds: int = Field(90, ge=0, le=100, description="Seconds to wait for the run to finish")
 
 
 class DiagIn(ToolInput):
