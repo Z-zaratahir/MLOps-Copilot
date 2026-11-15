@@ -54,6 +54,19 @@ AREAS = {
     "kubernetes": re.compile(r"\b(deploy\w*|kubernetes|k8s|pods?|cluster|replicas?)\b", re.I),
     "airflow": re.compile(r"\b(pipelines?|airflow|dags?|workflows?|retrain\w*|training runs?)\b", re.I),
 }
+def select_tools(question: str) -> set[str] | None:
+    """Offer only the tool modules a question concerns (saves ~half the prompt tokens per LLM call).
+    Returns None (= all tools) when the question does not clearly name a system."""
+    mods = {a for a, rx in AREAS.items() if rx.search(question)}
+    if not mods:
+        return None
+    if "airflow" in mods:
+        mods.add("dvc")  # pipeline failures need the data state (hash, changes)
+    if re.search(r"retrain|assess|degrad", question, re.I):
+        mods.add("assessment")
+    return {t.name for t in registry.TOOLS.values() if t.module in mods}
+
+
 MAX_COVERAGE_NUDGES = 2
 DEFAULT_TOOL = {"mlflow": "find_best_run", "dvc": "dvc_current_version",
                 "kubernetes": "k8s_find_unhealthy_pods", "airflow": "airflow_get_dag_runs"}
@@ -130,7 +143,7 @@ class Orchestrator:
         messages = [{"role": "system", "content": SYSTEM_PROMPT.format(
             dag=s.airflow_approved_dag, ns=s.k8s_approved_namespace, today=date.today().isoformat())},
             *self.history[-6:], {"role": "user", "content": question}]
-        schemas, cache, nudges, empty_turns, forced = registry.llm_schemas(), {}, 0, 0, False
+        schemas, cache, nudges, empty_turns, forced = registry.llm_schemas(select_tools(question)), {}, 0, 0, False
         reformatted = False
         draft = None
         try:

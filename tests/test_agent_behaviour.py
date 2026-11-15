@@ -124,6 +124,15 @@ def test_selected_models_recorded_dataset_reference_must_be_read():
     assert missing_provenance("What is the best model?", [best]) is None
 
 
+def test_only_relevant_tool_modules_are_offered_to_the_model():
+    from agent.orchestrator import select_tools
+    names = select_tools("Why did the training pipeline fail?")
+    assert "airflow_get_task_diagnostics" in names and "dvc_detect_changes" in names
+    assert "k8s_list_pods" not in names and len(names) < len(registry.TOOLS) - 5
+    assert "assess_retraining_need" in select_tools("Is retraining necessary for the deployed model?")
+    assert select_tools("hello there") is None
+
+
 def test_best_run_is_not_called_production_ready_just_for_top_f1(monkeypatch):
     runs = [fake_run("old-high", "r1", 0.80, recall=0.30, version="v1"), fake_run("new", "r2", 0.70, gate="passed")]
     monkeypatch.setattr(mlflow_tools, "all_runs", lambda *a, **k: runs)
