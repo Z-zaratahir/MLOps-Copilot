@@ -40,7 +40,28 @@ assess_retraining_need reports explicit triggers (freshness policy, failed quali
 `confirm <token>` themselves. Never claim a change happened before confirmation.
 6. For combined or diagnostic questions answer with three headed sections: **Known facts** (cited), **Uncertainties**, \
 **Recommended actions**. For simple lookups, answer briefly with citations.
-7. Quote numbers and ids exactly as returned by tools."""
+7. Quote numbers and ids exactly as returned by tools. Cite with plain square brackets, e.g. [E2].
+8. Do not invent inputs: only pass values the user gave or tools returned (e.g. never make up a degradation figure).
+9. A rollout restart does NOT deploy a new model: the model is baked into the container image, so shipping a different \
+model needs a rebuilt image and an updated deployment. Do not suggest otherwise."""
+
+
+AREAS = {
+    "mlflow": re.compile(r"\b(models?|experiments?|runs?|metrics?|f1|accuracy|candidate)\b", re.I),
+    "dvc": re.compile(r"\b(datasets?|data version|dvc|training data|trained on)\b", re.I),
+    "kubernetes": re.compile(r"\b(deploy\w*|kubernetes|k8s|pods?|cluster|replicas?)\b", re.I),
+    "airflow": re.compile(r"\b(pipelines?|airflow|dags?|workflows?|retrain\w*|training runs?)\b", re.I),
+}
+MAX_COVERAGE_NUDGES = 2
+
+
+def missing_areas(question: str, results: list[ToolResult]) -> list[str]:
+    """For questions spanning 3+ systems, which systems have not been queried yet."""
+    matched = [a for a, rx in AREAS.items() if rx.search(question)]
+    if len(matched) < 3:
+        return []
+    called = {registry.TOOLS[r.tool].module for r in results if r.tool in registry.TOOLS}
+    return [a for a in matched if a not in called]
 
 
 class Orchestrator:
@@ -59,7 +80,7 @@ class Orchestrator:
         messages = [{"role": "system", "content": SYSTEM_PROMPT.format(
             dag=s.airflow_approved_dag, ns=s.k8s_approved_namespace, today=date.today().isoformat())},
             *self.history[-6:], {"role": "user", "content": question}]
-        schemas, cache = registry.llm_schemas(), {}
+        schemas, cache, nudges = registry.llm_schemas(), {}, 0
         draft = None
         try:
             for _ in range(MAX_STEPS):
@@ -67,6 +88,15 @@ class Orchestrator:
                 calls = (msg.get("tool_calls") or [])[:MAX_CALLS_PER_STEP]
                 if not calls:
                     draft = msg.get("content") or ""
+                    gaps = missing_areas(question, ctx.results)
+                    if gaps and nudges < MAX_COVERAGE_NUDGES:
+                        nudges += 1
+                        messages += [{"role": "assistant", "content": draft},
+                                     {"role": "user", "content": "Your answer is incomplete: the question spans several "
+                                      f"systems and you have not queried: {', '.join(gaps)}. Call the relevant tools "
+                                      "now, then answer."}]
+                        log_event("coverage_nudge", request_id=ctx.request_id, missing=gaps)
+                        continue
                     break
                 messages.append({"role": "assistant", "content": msg.get("content"), "tool_calls": calls})
                 for c in calls:
