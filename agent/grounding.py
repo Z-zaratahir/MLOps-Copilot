@@ -42,6 +42,9 @@ def check(answer: str, results: list[ToolResult]) -> dict:
         decimals = len(tok.split(".")[1])
         if tok in blob or any(round(f, decimals) == v for f in floats):
             continue
+        # simple derived values (differences between two reported figures) are legitimate
+        if any(round(abs(x - y), decimals) == v for x in floats for y in floats):
+            continue
         unsupported.append(tok)
     unsupported += [h for h in HEX_ID.findall(answer) if h not in blob]
     return {"bad_citations": bad_cites, "unsupported_values": sorted(set(unsupported))}
