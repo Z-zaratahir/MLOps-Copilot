@@ -17,7 +17,7 @@ from agent.tools import (  # noqa: F401  (imports register the tools)
     mlflow_tools,
 )
 
-MAX_STEPS = 8
+MAX_STEPS = 14  # models call one tool per turn; coverage and format nudges add turns
 MAX_CALLS_PER_STEP = 6
 MAX_TOOL_JSON = 2400
 CONFIRM = re.compile(r"^\s*confirm\s+([0-9a-f]{6})\s*$", re.I)
@@ -144,7 +144,7 @@ class Orchestrator:
             dag=s.airflow_approved_dag, ns=s.k8s_approved_namespace, today=date.today().isoformat())},
             *self.history[-6:], {"role": "user", "content": question}]
         schemas, cache, nudges, empty_turns, forced = registry.llm_schemas(select_tools(question)), {}, 0, 0, False
-        reformatted = False
+        reformatted, last_draft = False, ""
         draft = None
         try:
             for _ in range(MAX_STEPS):
@@ -152,6 +152,8 @@ class Orchestrator:
                 calls = (msg.get("tool_calls") or [])[:MAX_CALLS_PER_STEP]
                 if not calls:
                     draft = msg.get("content") or ""
+                    if draft.strip():
+                        last_draft = draft
                     if not draft.strip() and empty_turns < 2:  # some models emit an empty turn after tool output
                         empty_turns += 1
                         messages.append({"role": "user", "content": "Write your final answer now, using the tool "
@@ -199,7 +201,10 @@ class Orchestrator:
                 for c in calls:
                     messages.append(self._run_call(c, ctx, cache))
             else:
-                draft = ""  # step budget exhausted without a final answer
+                # step budget used up: fall back to the last real draft instead of discarding it
+                draft = last_draft
+                if not draft:
+                    log_event("step_budget_exhausted", request_id=ctx.request_id)
         except LLMError as exc:
             log_event("llm_unavailable", request_id=ctx.request_id, error=str(exc)[:200])
             ans = self._finalize(ctx, "", llm_error=str(exc))

@@ -133,6 +133,18 @@ def test_only_relevant_tool_modules_are_offered_to_the_model():
     assert select_tools("hello there") is None
 
 
+def test_last_real_draft_survives_when_the_step_budget_runs_out(monkeypatch):
+    patch_tool(monkeypatch, "dvc_current_version", lambda a: {"version": "v3"})
+    from agent import orchestrator
+    monkeypatch.setattr(orchestrator, "MAX_STEPS", 3)
+    llm = FakeLLM(say("Data is on v3 [E1]."), call("dvc_current_version"), call("dvc_current_version"),
+                  call("dvc_current_version"))
+    # a combined question makes the orchestrator push back on the first draft, so the model keeps calling tools
+    q = "Find the best model, its dataset version, the deployment status and whether retraining is needed"
+    ans = orchestrator.Orchestrator(llm).run(q)
+    assert "v3" in ans.answer and "empty_model_answer" not in ans.notes
+
+
 def test_best_run_is_not_called_production_ready_just_for_top_f1(monkeypatch):
     runs = [fake_run("old-high", "r1", 0.80, recall=0.30, version="v1"), fake_run("new", "r2", 0.70, gate="passed")]
     monkeypatch.setattr(mlflow_tools, "all_runs", lambda *a, **k: runs)
