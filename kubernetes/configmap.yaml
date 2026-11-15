@@ -4,6 +4,6 @@ metadata:
   name: parcel-delay-config
   namespace: parcel-ml
 data:
-  APP_VERSION: "1.0.0"
+  APP_VERSION: "1.0.1"
   MODEL_DIR: "models/served"
   DECISION_THRESHOLD: "0.5"

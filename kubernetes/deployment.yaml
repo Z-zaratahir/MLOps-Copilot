@@ -14,11 +14,11 @@ spec:
     metadata:
       labels:
         app: parcel-delay-api
-        app.kubernetes.io/version: "1.0.0"
+        app.kubernetes.io/version: "1.0.1"
     spec:
       containers:
         - name: api
-          image: parcel-delay-api:1.0.0
+          image: parcel-delay-api:1.0.1
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
