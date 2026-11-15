@@ -54,6 +54,8 @@ with DAG(
         "min_f1": Param(0.60, type="number"),
         "min_recall": Param(0.55, type="number"),
         "min_auc": Param(0.70, type="number"),
+        # chaos switch: fail evaluate_and_log on its first try only, to exercise retry behaviour
+        "inject_transient_failure": Param(False, type="boolean"),
     },
 ) as dag:
 
@@ -73,6 +75,9 @@ with DAG(
 
     @task
     def evaluate_and_log():
+        ctx = get_current_context()
+        if ctx["params"].get("inject_transient_failure") and ctx["ti"].try_number == 1:
+            raise RuntimeError("injected transient failure on try 1 (retry behaviour check)")
         return run_stage("evaluate", "--work", _work(),
                          "--airflow-run-id", get_current_context()["run_id"])
 
