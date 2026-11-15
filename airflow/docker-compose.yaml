@@ -22,7 +22,7 @@ services:
       GIT_CONFIG_VALUE_0: "*"
     volumes:
       - ${A3_DIR}:${A3_DIR}
-      - ./passwords.json:/opt/airflow/passwords.json:ro
+      - ./passwords.json:/opt/airflow/passwords.json
       - airflow-home:/opt/airflow
     mem_limit: 2g
 
