@@ -4,7 +4,7 @@ import re
 
 from agent.schemas import ToolResult
 
-CITE = re.compile(r"\[E(\d+)\]")
+CITE = re.compile(r"[\[【]E(\d+)[\]】]")
 NUMBER = re.compile(r"(?<![\w.])\d+\.\d{2,}(?![\w.])")
 HEX_ID = re.compile(r"\b[0-9a-f]{32}\b")
 OPERATIONAL = re.compile(r"\b[0-9a-f]{32}\b|\bv\d\b|\b\d+/\d+\b|\b\d+(\.\d+)?\s?%|\b\d+\.\d{2,}\b", re.I)
