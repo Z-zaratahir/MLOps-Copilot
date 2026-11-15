@@ -81,7 +81,9 @@ def test_unavailability_question_requires_pods_logs_services_and_config():
     q = "Why is my prediction API unavailable?"
     assert missing_diagnostics(q, []) == ["k8s_find_unhealthy_pods", "k8s_get_pod_logs", "k8s_list_services",
                                           "k8s_get_config"]
-    assert missing_diagnostics("Why did the training pipeline fail?", []) == []
+    assert missing_diagnostics("Why did the training pipeline fail?", []) == [
+        "airflow_identify_failed_tasks", "airflow_get_task_diagnostics", "dvc_detect_changes"]
+    assert missing_diagnostics("What is the best model?", []) == []
 
 
 def test_best_run_is_not_called_production_ready_just_for_top_f1(monkeypatch):

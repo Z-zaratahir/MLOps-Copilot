@@ -60,13 +60,20 @@ DIAGNOSIS = re.compile(r"\b(why|unavailable|not (?:working|responding|ready)|dow
 DIAGNOSTIC_TOOLS = ["k8s_find_unhealthy_pods", "k8s_get_pod_logs", "k8s_list_services", "k8s_get_config"]
 
 
+PIPELINE_WORDS = re.compile(r"\b(pipeline|dag|training|airflow|workflow)\b", re.I)
+PIPELINE_DIAGNOSTIC_TOOLS = ["airflow_identify_failed_tasks", "airflow_get_task_diagnostics", "dvc_detect_changes"]
+
+
 def missing_diagnostics(question: str, results: list[ToolResult]) -> list[str]:
-    """'Why is the API unavailable?' needs pods, logs, service endpoints and config before a root cause."""
-    if not (DIAGNOSIS.search(question) and re.search(r"\b(api|service|deployment|pods?|endpoint)\b", question, re.I)
-            and not re.search(r"\b(pipeline|dag|training|airflow)\b", question, re.I)):
+    """Failure questions need the full evidence set before a root cause is stated."""
+    if not DIAGNOSIS.search(question):
         return []
     done = {r.tool for r in results}
-    return [t for t in DIAGNOSTIC_TOOLS if t not in done]
+    if PIPELINE_WORDS.search(question) and re.search(r"\b(fail\w*|error|broke\w*|why)\b", question, re.I):
+        return [t for t in PIPELINE_DIAGNOSTIC_TOOLS if t not in done]
+    if re.search(r"\b(api|service|deployment|pods?|endpoint)\b", question, re.I):
+        return [t for t in DIAGNOSTIC_TOOLS if t not in done]
+    return []
 
 
 def missing_areas(question: str, results: list[ToolResult]) -> list[str]:
