@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     llm_provider: str = "groq"
     groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-120b"
+    groq_fallback_models: str = "openai/gpt-oss-20b,qwen/qwen3.8-27b"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
 
