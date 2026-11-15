@@ -8,10 +8,7 @@ from agent.schemas import ToolResult
 from agent.tools import assessment_tools, mlflow_tools
 from tests.conftest import FakeLLM, call, fake_run, say
 
-
-SECTIONS = "**Known facts** x [E1]
-**Uncertainties** y
-**Recommended actions** z"
+SECTIONS = "**Known facts** x [E1]\n**Uncertainties** y\n**Recommended actions** z"
 
 
 def patch_tool(monkeypatch, name, fn):
