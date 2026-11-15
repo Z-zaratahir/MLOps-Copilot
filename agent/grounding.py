@@ -7,8 +7,7 @@ from agent.schemas import ToolResult
 CITE = re.compile(r"\[E(\d+)\]")
 NUMBER = re.compile(r"(?<![\w.])\d+\.\d{2,}(?![\w.])")
 HEX_ID = re.compile(r"\b[0-9a-f]{32}\b")
-OPERATIONAL = re.compile(r"\b[0-9a-f]{32}\b|\bv\d\b|\b\d+/\d+\b|\b\d+(\.\d+)?\s?%|\bF1\b|\breplicas?\b|\bpods?\b"
-                         r"|\bDAG\b|\bdataset\b", re.I)
+OPERATIONAL = re.compile(r"\b[0-9a-f]{32}\b|\bv\d\b|\b\d+/\d+\b|\b\d+(\.\d+)?\s?%|\b\d+\.\d{2,}\b", re.I)
 
 
 def _floats(obj, out: set):
