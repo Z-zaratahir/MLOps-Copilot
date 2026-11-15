@@ -185,6 +185,18 @@ def k8s_get_deployed_version(_: NoArgs):
             "running_service_reports": live}
 
 
+@tool(MODULE, "Show the application's ConfigMap (non-sensitive settings such as model path and version).")
+def k8s_get_config(_: NoArgs):
+    core, _a = _api()
+    out = []
+    for cm in core.list_namespaced_config_map(_ns(), _request_timeout=TIMEOUT).items:
+        if cm.metadata.name.startswith("kube-"):
+            continue
+        out.append({"name": cm.metadata.name, "data": cm.data or {},
+                    "last_changed": _age(cm.metadata.creation_timestamp) + " since creation"})
+    return out
+
+
 @tool(MODULE, "REQUEST a rollout restart of a deployment. Does not execute: returns a confirmation token the human must approve.",
       mutating=True)
 def k8s_request_restart(a: RestartIn):
