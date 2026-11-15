@@ -68,7 +68,9 @@ def test_multi_system_question_is_pushed_to_query_every_system(monkeypatch):
     patch_tool(monkeypatch, "airflow_get_dag_runs", lambda a: {"runs": []})
     llm = FakeLLM(call("find_best_run"), say("done early"),
                   call("get_dataset_for_run", run_ref="1"), call("k8s_get_deployed_version"),
-                  call("airflow_get_dag_runs"), say("Complete answer."))
+                  call("airflow_get_dag_runs"), say("**Known facts** x [E1]
+**Uncertainties** y
+**Recommended actions** z"))
     q = "Find the best model, its dataset version, the deployment status and whether retraining is needed"
     ans = Orchestrator(llm).run(q)
     assert {e.tool for e in ans.evidence} >= {"find_best_run", "get_dataset_for_run", "k8s_get_deployed_version"}
@@ -91,7 +93,9 @@ def test_orchestrator_runs_missing_systems_itself_when_the_model_keeps_skipping_
     patch_tool(monkeypatch, "dvc_current_version", lambda a: {"version": "v3"})
     patch_tool(monkeypatch, "k8s_find_unhealthy_pods", lambda a: {"healthy": True})
     patch_tool(monkeypatch, "airflow_get_dag_runs", lambda a: {"runs": []})
-    stubborn = FakeLLM(call("find_best_run"), say("a"), say("b"), say("c"), say("Final, using all evidence [E4]."))
+    stubborn = FakeLLM(call("find_best_run"), say("a"), say("b"), say("c"), say("Final. **Known facts** x [E1]
+**Uncertainties** y
+**Recommended actions** z"))
     q = "Find the best model, its dataset version, the deployment status and whether retraining is needed"
     ans = Orchestrator(stubborn).run(q)
     assert {e.tool for e in ans.evidence} >= {"dvc_current_version", "k8s_find_unhealthy_pods", "airflow_get_dag_runs"}
