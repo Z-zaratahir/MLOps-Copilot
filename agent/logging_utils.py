@@ -33,6 +33,11 @@ class JsonFormatter(logging.Formatter):
 
 def get_logger(log_file: str | None = None) -> logging.Logger:
     logger = logging.getLogger("agent")
+    want = str(Path(log_file).resolve()) if log_file else None
+    for h in list(logger.handlers):  # re-attach when the target file changes
+        if getattr(h, "baseFilename", None) != want:
+            logger.removeHandler(h)
+            h.close()
     if logger.handlers:
         return logger
     logger.setLevel(logging.INFO)
