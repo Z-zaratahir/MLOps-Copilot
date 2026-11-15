@@ -98,6 +98,20 @@ def test_orchestrator_runs_missing_systems_itself_when_the_model_keeps_skipping_
     assert ans.answer.startswith("Final")
 
 
+def test_combined_answers_must_separate_facts_uncertainties_and_actions(monkeypatch):
+    for n, out in [("find_best_run", {"b": 1}), ("dvc_current_version", {"v": 3}),
+                   ("k8s_get_deployed_version", {"i": "x"}), ("airflow_get_dag_runs", {"r": []})]:
+        patch_tool(monkeypatch, n, lambda a, out=out: out)
+    good = "**Known facts** a [E1]\n**Uncertainties** b\n**Recommended actions** c"
+    llm = FakeLLM(call("find_best_run"), call("dvc_current_version"), call("k8s_get_deployed_version"),
+                  call("airflow_get_dag_runs"), say("Here is a loose summary."), say(good))
+    q = "Find the best model, its dataset version, the deployment status and whether retraining is needed"
+    ans = Orchestrator(llm).run(q)
+    assert ans.answer.startswith("**Known facts**")
+    from agent.orchestrator import missing_sections
+    assert missing_sections("what is the f1 of run 3?", "just 0.7") == []
+
+
 def test_best_run_is_not_called_production_ready_just_for_top_f1(monkeypatch):
     runs = [fake_run("old-high", "r1", 0.80, recall=0.30, version="v1"), fake_run("new", "r2", 0.70, gate="passed")]
     monkeypatch.setattr(mlflow_tools, "all_runs", lambda *a, **k: runs)

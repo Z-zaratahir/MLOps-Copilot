@@ -89,6 +89,16 @@ def missing_areas(question: str, results: list[ToolResult]) -> list[str]:
     return [a for a in matched if a not in called]
 
 
+REQUIRED_SECTIONS = ["Known facts", "Uncertainties", "Recommended actions"]
+
+
+def missing_sections(question: str, draft: str) -> list[str]:
+    """Combined or diagnostic questions must separate facts, uncertainties and recommendations."""
+    if not (len([a for a, rx in AREAS.items() if rx.search(question)]) >= 3 or missing_diagnostics(question, [])):
+        return []
+    return [s for s in REQUIRED_SECTIONS if s.lower() not in draft.lower()]
+
+
 class Orchestrator:
     def __init__(self, llm):
         self.llm = llm
@@ -106,6 +116,7 @@ class Orchestrator:
             dag=s.airflow_approved_dag, ns=s.k8s_approved_namespace, today=date.today().isoformat())},
             *self.history[-6:], {"role": "user", "content": question}]
         schemas, cache, nudges, empty_turns, forced = registry.llm_schemas(), {}, 0, 0, False
+        reformatted = False
         draft = None
         try:
             for _ in range(MAX_STEPS):
@@ -131,6 +142,14 @@ class Orchestrator:
                                      {"role": "user", "content": "The orchestrator ran these required read-only tools "
                                       "because they were missing. Use their results (cite the evidence ids) and answer "
                                       "now:\n" + "\n".join(g["content"] for g in got)}]
+                        continue
+                    lacking = missing_sections(question, draft)
+                    if not gaps and lacking and not reformatted:
+                        reformatted = True
+                        messages += [{"role": "assistant", "content": draft},
+                                     {"role": "user", "content": "Rewrite your answer with exactly these three bold "
+                                      f"section headings, including: {', '.join(lacking)}. Known facts must cite "
+                                      "evidence ids; keep every value unchanged."}]
                         continue
                     if gaps and nudges < MAX_COVERAGE_NUDGES:
                         nudges += 1
