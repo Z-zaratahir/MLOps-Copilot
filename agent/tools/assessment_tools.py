@@ -3,16 +3,18 @@
 It only RECOMMENDS. It never starts training. Every trigger it reports is backed by data
 fetched from the four systems; anything it cannot fetch is listed as an uncertainty.
 """
+import re
 from datetime import UTC, datetime
 
 from pydantic import Field
 
 from agent.config import get_settings
-from agent.registry import ToolInput, tool
+from agent.registry import ToolInput, current_request, tool
 from agent.tools import airflow_tools, dvc_tools, kubernetes_tools, mlflow_tools
 
 MODULE = "assessment"
 DRIFT_DELAY_RATE_THRESHOLD = 0.05
+DEGRADATION_WORDS = re.compile(r"degrad|dropp?ed|declin|decreas|worse|fell|deteriorat", re.I)
 
 
 class AssessIn(ToolInput):
@@ -91,6 +93,11 @@ def assess_retraining_need(a: AssessIn):
             unc.append("running service did not report which model it serves")
 
     # 5. user-supplied degradation
+    ctx = current_request.get()
+    said = ctx.user_text if ctx else ""
+    if a.observed_degradation is not None and not DEGRADATION_WORDS.search(said):
+        unc.append(f"ignored degradation value {a.observed_degradation}: the user did not report any degradation")
+        a.observed_degradation = None
     if a.observed_degradation is not None and a.observed_degradation > 0.05:
         triggers.append({"type": "supplied_degradation", "detail": f"user reported metric drop of {a.observed_degradation}"})
     elif a.observed_degradation is None:
