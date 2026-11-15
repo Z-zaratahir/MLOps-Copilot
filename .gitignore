@@ -33,3 +33,4 @@ models/*.joblib
 models/served/
 .work/
 airflow/passwords.json
+logs/
