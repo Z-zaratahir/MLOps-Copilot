@@ -141,9 +141,16 @@ def test_llm_chain_switches_model_when_one_is_rate_limited(monkeypatch):
 
 
 @pytest.mark.parametrize("bad", ["", "   "])
-def test_empty_model_reply_is_not_passed_off_as_an_answer(bad):
-    ans = Orchestrator(FakeLLM(say(bad))).run("hello")
-    assert "step_budget_exhausted" in ans.notes
+def test_persistently_empty_model_reply_is_not_passed_off_as_an_answer(bad):
+    ans = Orchestrator(FakeLLM(say(bad), say(bad), say(bad))).run("hello")
+    assert "empty_model_answer" in ans.notes
+
+
+def test_empty_turn_after_tool_output_is_retried_for_a_real_answer(monkeypatch):
+    patch_tool(monkeypatch, "dvc_current_version", lambda a: {"version": "v3"})
+    llm = FakeLLM(call("dvc_current_version"), say(""), say("The data is on version v3 [E1]."))
+    ans = Orchestrator(llm).run("which data version is checked out?")
+    assert "v3" in ans.answer and ans.notes == []
 
 
 def test_httpx_errors_are_handled_as_llm_failures(monkeypatch):

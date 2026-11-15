@@ -101,7 +101,7 @@ class Orchestrator:
         messages = [{"role": "system", "content": SYSTEM_PROMPT.format(
             dag=s.airflow_approved_dag, ns=s.k8s_approved_namespace, today=date.today().isoformat())},
             *self.history[-6:], {"role": "user", "content": question}]
-        schemas, cache, nudges = registry.llm_schemas(), {}, 0
+        schemas, cache, nudges, empty_turns = registry.llm_schemas(), {}, 0, 0
         draft = None
         try:
             for _ in range(MAX_STEPS):
@@ -109,6 +109,11 @@ class Orchestrator:
                 calls = (msg.get("tool_calls") or [])[:MAX_CALLS_PER_STEP]
                 if not calls:
                     draft = msg.get("content") or ""
+                    if not draft.strip() and empty_turns < 2:  # some models emit an empty turn after tool output
+                        empty_turns += 1
+                        messages.append({"role": "user", "content": "Write your final answer now, using the tool "
+                                         "results above and citing evidence ids."})
+                        continue
                     gaps = missing_areas(question, ctx.results) + missing_diagnostics(question, ctx.results)
                     if gaps and nudges < MAX_COVERAGE_NUDGES:
                         nudges += 1
@@ -178,8 +183,8 @@ class Orchestrator:
                       f"Reason: {llm_error}")
             notes.append("llm_unavailable")
         elif not draft.strip():
-            answer = "I could not complete this request within the allowed number of steps."
-            notes.append("step_budget_exhausted")
+            answer = "I did not receive a usable answer from the language model for this request."
+            notes.append("empty_model_answer")
         elif not ok and grounding.looks_operational(draft):
             # nothing verified, yet the draft makes operational claims: refuse to pass it on
             answer = ("I could not verify any operational facts for this request because the required tools did "
