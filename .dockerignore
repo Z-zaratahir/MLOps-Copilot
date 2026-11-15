@@ -1,0 +1,10 @@
+.venv/
+.git/
+.dvc/
+data/
+mlruns/
+tests/
+dags/
+agent/
+**/__pycache__/
+.env
