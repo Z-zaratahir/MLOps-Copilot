@@ -65,13 +65,28 @@ def tool(module: str, description: str, mutating: bool = False, timeout: float |
     return deco
 
 
+def _compact(node):
+    """Drop schema noise (titles, defaults of None) so each LLM call costs fewer tokens."""
+    if isinstance(node, dict):
+        out = {}
+        for k, v in node.items():
+            if k == "title" and isinstance(v, str):
+                continue
+            if k == "default" and v is None:
+                continue
+            out[k] = _compact(v) if k != "properties" else {p: _compact(s) for p, s in v.items()}
+        return out
+    if isinstance(node, list):
+        return [_compact(x) for x in node]
+    return node
+
+
 def llm_schemas(only: set[str] | None = None) -> list[dict]:
     out = []
     for t in TOOLS.values():
         if t.hidden or (only and t.name not in only):
             continue
-        schema = t.input_model.model_json_schema()
-        schema.pop("title", None)
+        schema = _compact(t.input_model.model_json_schema())
         out.append({"type": "function", "function": {
             "name": t.name, "description": t.description, "parameters": schema}})
     return out

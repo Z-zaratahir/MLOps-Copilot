@@ -19,7 +19,7 @@ from agent.tools import (  # noqa: F401  (imports register the tools)
 
 MAX_STEPS = 8
 MAX_CALLS_PER_STEP = 6
-MAX_TOOL_JSON = 6000
+MAX_TOOL_JSON = 4000
 CONFIRM = re.compile(r"^\s*confirm\s+([0-9a-f]{6})\s*$", re.I)
 
 SYSTEM_PROMPT = """You are the MLOps Copilot for a parcel-delay prediction model. You operate real systems through tools: \
@@ -101,7 +101,7 @@ class Orchestrator:
             else:
                 res = cache[key] = registry.execute(name, args, ctx)
         payload = res.model_dump(include={"tool", "status", "data", "error", "evidence_id"})
-        text = json.dumps(payload, default=str)
+        text = json.dumps(payload, default=str, separators=(",", ":"))
         if len(text) > MAX_TOOL_JSON:
             text = text[:MAX_TOOL_JSON] + '..."[truncated]"'
         return {"role": "tool", "tool_call_id": call.get("id", ""), "content": text}
