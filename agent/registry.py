@@ -47,17 +47,20 @@ class ToolSpec:
     func: Callable
     mutating: bool = False
     timeout: float | None = None
+    hidden: bool = False  # never offered to, nor callable by, the LLM
 
 
 TOOLS: dict[str, ToolSpec] = {}
 _pool = ThreadPoolExecutor(max_workers=6, thread_name_prefix="tool")
 
 
-def tool(module: str, description: str, mutating: bool = False, timeout: float | None = None):
+def tool(module: str, description: str, mutating: bool = False, timeout: float | None = None,
+         hidden: bool = False):
     def deco(fn):
         hints = typing.get_type_hints(fn)
         model = next((v for k, v in hints.items() if k != "return"), NoArgs)
-        TOOLS[fn.__name__] = ToolSpec(fn.__name__, module, description, model, fn, mutating, timeout)
+        TOOLS[fn.__name__] = ToolSpec(fn.__name__, module, description, model, fn, mutating, timeout,
+                                      hidden)
         return fn
     return deco
 
@@ -65,7 +68,7 @@ def tool(module: str, description: str, mutating: bool = False, timeout: float |
 def llm_schemas(only: set[str] | None = None) -> list[dict]:
     out = []
     for t in TOOLS.values():
-        if only and t.name not in only:
+        if t.hidden or (only and t.name not in only):
             continue
         schema = t.input_model.model_json_schema()
         schema.pop("title", None)
@@ -74,8 +77,11 @@ def llm_schemas(only: set[str] | None = None) -> list[dict]:
     return out
 
 
-def execute(name: str, raw_args: dict | None, ctx: RequestContext) -> ToolResult:
-    """Run one tool call. Never raises: every outcome is a structured ToolResult."""
+def execute(name: str, raw_args: dict | None, ctx: RequestContext,
+            allow_hidden: bool = False) -> ToolResult:
+    """Run one tool call. Never raises: every outcome is a structured ToolResult.
+
+    allow_hidden is True only on the human-confirmation path, never for LLM requests."""
     started = time.perf_counter()
     eid = ctx.next_evidence_id()
 
@@ -90,7 +96,7 @@ def execute(name: str, raw_args: dict | None, ctx: RequestContext) -> ToolResult
         return res
 
     spec = TOOLS.get(name)
-    if spec is None:
+    if spec is None or (spec.hidden and not allow_hidden):
         return finish("unknown_tool", error=f"no such tool: {name}")
     try:
         args = spec.input_model.model_validate(raw_args or {})
