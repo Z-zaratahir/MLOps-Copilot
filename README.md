@@ -21,7 +21,8 @@ See [`architecture.md`](architecture.md) for the design, tool list, permissions 
 | `dags/training_pipeline.py` | **Airflow 3** DAG: validate → preprocess → train → evaluate/log → quality gate → promote; retries, logging, gated promotion |
 | `api/main.py`, `Dockerfile`, `kubernetes/` | FastAPI inference service; Deployment (2 replicas, startup/readiness/liveness probes, requests/limits), ClusterIP Service, ConfigMap |
 | `agent/` | Tool registry, 30 model-visible tools, orchestrator, grounding checks, safety policy, structured logging, CLI |
-| `tests/` | 38 pytest tests; all external systems mocked |
+| `dvc.yaml`, `scripts/live_smoke.py` | DVC pipeline stage that profiles the tracked data; a smoke script that runs every tool once against the live systems |
+| `tests/` | 39 pytest tests; all external systems mocked |
 
 ## Prerequisites
 
@@ -49,6 +50,9 @@ Edit `.env` (it is git-ignored — never commit it):
 
 ## 2. Data (DVC)
 
+The tracked dataset is **synthetic** (seeded generator, so anyone can reproduce it exactly); every other component
+(DVC remote, MLflow, Airflow, Kubernetes) is real and live.
+
 ```bash
 . .venv/bin/activate
 dvc init                                              # already done in this repo
@@ -59,6 +63,9 @@ for v in v1 v2 v3; do                                 # how the three versions w
   git commit -m "Recorded parcel dataset $v under DVC" && git tag dataset-$v && dvc push
 done
 ```
+
+The `profile_data` pipeline stage (`dvc.yaml`) turns the tracked data into `metrics/data_profile.json`:
+`dvc repro && dvc metrics show`.
 
 Reproduce any version (worktree only, nothing staged):
 
@@ -77,6 +84,7 @@ mlflow server --host 0.0.0.0 --port 5000 \
   --backend-store-uri sqlite:///../mlflow-store/mlflow.db --default-artifact-root ../mlflow-store/artifacts
 python training/train.py --model gbm --run-name first-run     # one tracked run
 python training/sweep.py                                       # 19 more runs across v2/v3
+python training/sweep.py --baselines                           # a second experiment (parcel-delay-baselines)
 ```
 
 ## 4. Airflow 3 (Docker)
@@ -124,7 +132,8 @@ Cluster changes are two-step. The agent can only **request** a restart/scale; it
 
 ```bash
 uv run ruff check .
-uv run pytest                 # 38 tests, no external services needed
+uv run pytest                 # 39 tests, no external services needed
+python scripts/live_smoke.py  # optional: every tool once against the running MLflow/Airflow/cluster
 ```
 
 `.github/workflows/ci.yml` runs lint and tests on pull requests and pushes to `main`. Kubernetes, Airflow, MLflow and
@@ -136,6 +145,8 @@ the LLM are mocked in CI.
 |---|---|---|---|
 | Bad configuration | `kubectl -n parcel-ml patch configmap parcel-delay-config -p '{"data":{"MODEL_DIR":"models/missing"}}'` then `kubectl -n parcel-ml delete pod -l app=parcel-delay-api` | Pods `0/1` Ready, readiness 503, `FileNotFoundError` in logs, 0 service endpoints, wrong `MODEL_DIR` | `kubectl apply -f kubernetes/configmap.yaml`, then ask the agent to restart and `confirm` |
 | Corrupted data | blank some `distance_km` values in `data/parcels.csv`, then ask the agent to run the pipeline | `validate_data` fails (nulls + hash mismatch vs DVC pointer), downstream tasks `upstream_failed` | `dvc checkout --force data/parcels.csv.dvc` |
+| Transient task failure | trigger the DAG with conf `{"inject_transient_failure": true}` | `evaluate_and_log` fails on try 1, Airflow retries it, try 2 succeeds | automatic (retries=2) |
+| Pod crash loop | patch the deployment memory request to `16Mi` and limit to `40Mi` | pod `CrashLoopBackOff`, `last: OOMKilled`, restart count, BackOff events, memory limit | `kubectl apply -f kubernetes/deployment.yaml` |
 | Unavailable service | `MLFLOW_TRACKING_URI=http://127.0.0.1:59999 python -m agent.main -q "..."` | MLflow tools fail; agent reports the errors and does not invent results | restore the URI |
 
 ## Secrets
