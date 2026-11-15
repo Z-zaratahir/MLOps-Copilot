@@ -42,7 +42,9 @@ assess_retraining_need reports explicit triggers (freshness policy, failed quali
 **Recommended actions**. For simple lookups, answer briefly with citations.
 7. Quote numbers and ids exactly as returned by tools. Cite with plain square brackets, e.g. [E2].
 8. Do not invent inputs: only pass values the user gave or tools returned (e.g. never make up a degradation figure).
-9. A rollout restart does NOT deploy a new model: the model is baked into the container image, so shipping a different \
+9. Separate CURRENT state (pod ready/restart counts, 'healthy') from HISTORICAL events: old warning events do not mean \
+the service is failing now. Report them as past, with their age.
+10. A rollout restart does NOT deploy a new model: the model is baked into the container image, so shipping a different \
 model needs a rebuilt image and an updated deployment. Do not suggest otherwise."""
 
 

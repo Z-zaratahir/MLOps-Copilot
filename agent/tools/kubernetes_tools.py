@@ -157,8 +157,11 @@ def k8s_find_unhealthy_pods(_: NoArgs):
             for d in apps.list_namespaced_deployment(_ns(), _request_timeout=TIMEOUT).items]
     return {"namespace": _ns(), "pods_checked": len(pods), "unhealthy": problems,
             "healthy": not problems and all(d["ready"] == d["desired"] for d in deps), "deployments": deps,
-            "warning_events": [{"object": e.involved_object.name, "reason": e.reason,
-                                "message": (e.message or "")[:220], "count": e.count} for e in warns]}
+            "warning_events": [{"object": e.involved_object.name, "reason": e.reason, "count": e.count,
+                                "age": _age(e.last_timestamp or e.event_time or e.metadata.creation_timestamp),
+                                "message": (e.message or "")[:220]} for e in warns],
+            "interpretation_note": "Events are history and may predate the current pods; current health is "
+                                   "'healthy' plus each pod's ready/restart state."}
 
 
 @tool(MODULE, "Report the currently deployed application version: image tag, config version, and what the running service reports.")
